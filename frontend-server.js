@@ -2,24 +2,30 @@ const http = require("http");
 const express = require("express");
 const app = express();
 const NodeCache = require("node-cache");
-const cache = new NodeCache({ stdTTL: 600, checkperiod: 120 });
-const maxCacheSize = 100; // Maximum number of items in the cache
+const cache = new NodeCache({ stdTTL: 6000, checkperiod: 120 });
+const maxCacheSize = 2; // Maximum number of items in the cache
 const port = 8000; // port server frontend http://172.18.0.6:8000
 
+function getRandomInt(min, max) {
+  return Math.floor(Math.random() * (max - min)) + min;
+}
+
 // Function to check cache size and apply LRU if needed
-function checkCacheSize() {
+function checkCacheSize(itemId, responseObject) {
   const currentCacheSize = cache.keys().length;
 
   if (currentCacheSize > maxCacheSize) {
-    const itemsToRemove = currentCacheSize - maxCacheSize;
+    const randomInt = getRandomInt(0, currentCacheSize);
 
-    // Get the least recently used keys
-    const lruKeys = cache.keys().slice(0, itemsToRemove);
+    const itemToDelete = cache.keys().at(randomInt);
+    // Remove the items from the cache based on random generator algorithm
+    cache.del(itemToDelete);
 
-    // Remove the least recently used items from the cache
-    lruKeys.forEach((key) => {
-      cache.del(key);
-    });
+    // Cache the data for future use
+    cache.set(itemId, responseObject);
+    return false;
+  } else {
+    return true;
   }
 }
 
@@ -38,7 +44,8 @@ app.get("/info/:itemId", (req, res) => {
     }
 
     const catalogRequest = http.get(
-      `http://172.18.0.7:8001/info/${itemId}`, //call catalog service http://172.18.0.7:8001/info/itemID
+      // `http://172.18.0.7:8001/info/${itemId}`, //call catalog service http://172.18.0.7:8001/info/itemID
+      `http://localhost:8001/info/${itemId}`, //call catalog service http://172.18.0.7:8001/info/itemID
       //response from server catalog
       (catalogRes) => {
         let data = "";
@@ -53,9 +60,12 @@ app.get("/info/:itemId", (req, res) => {
           if (catalogRes.statusCode === 200) {
             const responseObject = JSON.parse(data); //convert data from String to json format
 
-            // Cache the data for future use
-            cache.set(itemId, responseObject);
-            checkCacheSize(); // Check and apply cache size limit
+            var size = checkCacheSize(itemId, responseObject); // Check and apply cache size limit
+
+            if (size) {
+              // Cache the data for future use
+              cache.set(itemId, responseObject);
+            }
 
             res.json(responseObject); //send res to user
           } else {
@@ -97,7 +107,8 @@ app.get("/search/:query", (req, res) => {
     }
 
     const catalogRequest = http.get(
-      `http://172.18.0.7:8001/search/${query}`, //call catalog service http://172.18.0.7:8001/search/itemID or topic
+      //`http://172.18.0.7:8001/search/${query}`, //call catalog service http://172.18.0.7:8001/search/itemID or topic
+      `http://localhost:8001/search/${query}`, //call catalog service http://172.18.0.7:8001/search/itemID or topic
       (catalogRes) => {
         let data = "";
         //Same as info api
@@ -108,9 +119,12 @@ app.get("/search/:query", (req, res) => {
           if (catalogRes.statusCode === 200) {
             const responseObject = JSON.parse(data);
 
-            // Cache the data for future use
-            cache.set(query, responseObject);
-            checkCacheSize();
+            var size = checkCacheSize(query, responseObject); // Check and apply cache size limit
+
+            if (size) {
+              cache.set(query, responseObject);
+            }
+
             res.json(responseObject);
           } else {
             res.status(404).json({
@@ -136,13 +150,16 @@ app.get("/search/:query", (req, res) => {
 //purchase end point http://172.18.0.6:8000/purchase/itemID
 app.post("/purchase/:itemID", async (req, res) => {
   const { itemID } = req.params;
-
+  const startTime = new Date();
   try {
     // Check if the item is out of stock in the cache
     const cachedOutOfStock = cache.get(`outOfStock_${itemID}`);
 
     if (cachedOutOfStock) {
       console.log(`Item ID ${itemID} is out of stock (cached)`);
+      const endTime = new Date();
+      const elapsedTime = endTime - startTime;
+
       res.status(400).json({
         message: " Item out of stock ",
       });
@@ -154,6 +171,9 @@ app.post("/purchase/:itemID", async (req, res) => {
 
     if (cachedNotFound) {
       console.log(`Item ID ${itemID} not found (cached)`);
+      const endTime = new Date();
+      const elapsedTime = endTime - startTime;
+
       res.status(404).json({
         message: " Item not found ",
       });
@@ -161,7 +181,8 @@ app.post("/purchase/:itemID", async (req, res) => {
     }
 
     const orderOptions = {
-      hostname: "172.18.0.8",
+      // hostname: "172.18.0.8",
+      hostname: "localhost",
       port: 8002,
       path: `/purchase/${itemID}`,
       method: "POST",
@@ -175,6 +196,9 @@ app.post("/purchase/:itemID", async (req, res) => {
       });
 
       orderRes.on("end", () => {
+        const endTime = new Date();
+        const elapsedTime = endTime - startTime;
+
         const responseObject = JSON.parse(data);
 
         if (orderRes.statusCode === 200) {
@@ -182,16 +206,21 @@ app.post("/purchase/:itemID", async (req, res) => {
             message: ` ${responseObject.message} `, // Item bought successfully
           });
         } else if (orderRes.statusCode === 404) {
-          // Cache the information that the item is not found
-          cache.set(`notFound_${itemID}`, true);
-          checkCacheSize();
+          var size = checkCacheSize(`notFound_${itemID}`, true); // Check and apply cache size limit
+
+          if (size) {
+            cache.set(`notFound_${itemID}`, true);
+          }
+
           res.status(404).json({
             message: ` ${responseObject.message} `, // Item not found
           });
         } else {
-          // Cache the information that the item is out of stock
-          cache.set(`outOfStock_${itemID}`, true);
-          checkCacheSize();
+          var size = checkCacheSize(`outOfStock_${itemID}`, true); // Check and apply cache size limit
+
+          if (size) {
+            cache.set(`outOfStock_${itemID}`, true);
+          }
           res.status(400).json({
             message: ` ${responseObject.message} `, // Item out of stock
           });
