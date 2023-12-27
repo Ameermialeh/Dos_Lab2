@@ -2,8 +2,26 @@ const http = require("http");
 const express = require("express");
 const app = express();
 const NodeCache = require("node-cache");
-const cache = new NodeCache();
+const cache = new NodeCache({ stdTTL: 600, checkperiod: 120 });
+const maxCacheSize = 100; // Maximum number of items in the cache
 const port = 8000; // port server frontend http://172.18.0.6:8000
+
+// Function to check cache size and apply LRU if needed
+function checkCacheSize() {
+  const currentCacheSize = cache.keys().length;
+
+  if (currentCacheSize > maxCacheSize) {
+    const itemsToRemove = currentCacheSize - maxCacheSize;
+
+    // Get the least recently used keys
+    const lruKeys = cache.keys().slice(0, itemsToRemove);
+
+    // Remove the least recently used items from the cache
+    lruKeys.forEach((key) => {
+      cache.del(key);
+    });
+  }
+}
 
 //info end point http://172.18.0.6:8000/info/itemID
 app.get("/info/:itemId", (req, res) => {
@@ -37,6 +55,7 @@ app.get("/info/:itemId", (req, res) => {
 
             // Cache the data for future use
             cache.set(itemId, responseObject);
+            checkCacheSize(); // Check and apply cache size limit
 
             res.json(responseObject); //send res to user
           } else {
@@ -91,7 +110,7 @@ app.get("/search/:query", (req, res) => {
 
             // Cache the data for future use
             cache.set(query, responseObject);
-
+            checkCacheSize();
             res.json(responseObject);
           } else {
             res.status(404).json({
@@ -165,14 +184,14 @@ app.post("/purchase/:itemID", async (req, res) => {
         } else if (orderRes.statusCode === 404) {
           // Cache the information that the item is not found
           cache.set(`notFound_${itemID}`, true);
-
+          checkCacheSize();
           res.status(404).json({
             message: ` ${responseObject.message} `, // Item not found
           });
         } else {
           // Cache the information that the item is out of stock
           cache.set(`outOfStock_${itemID}`, true);
-
+          checkCacheSize();
           res.status(400).json({
             message: ` ${responseObject.message} `, // Item out of stock
           });
