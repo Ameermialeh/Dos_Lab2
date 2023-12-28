@@ -37,13 +37,15 @@ app.post("/purchase/:itemID", (req, res) => {
 
         //if item not found
         if (catalogResponse.statusCode == 404) {
-          return res.status(404).json({ message: catalogData.message }); //item not found
+          console.log(catalogData);
+          return res.status(404).json(catalogData); //item not found
         }
 
         // Check if the item is in stock
-        if (!catalogData || catalogData.quantity <= 0) {
-          return res.status(400).json({ message: "Item out of stock" }); // "Item out of stock"
+        if (!catalogData || catalogData[0]["quantity"] <= 0) {
+          return res.status(400).json(catalogData); // "Item out of stock"
         }
+
         // if found in stock send PUT query to catalog server to update on item quantity decrement by one
         //call catalog service http://172.18.0.8:8002/update/itemID
         const decrementRequestOptions = {
@@ -74,9 +76,7 @@ app.post("/purchase/:itemID", (req, res) => {
                 //item out of stock
                 res.status(400).json({ message: responseObject.message });
               } else {
-                res.status(200).json({
-                  message: `Bought book \'${responseObject.title}\' successfully`, // title here is item name
-                });
+                res.status(200).json(responseObject);
               }
             });
           }

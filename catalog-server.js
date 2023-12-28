@@ -20,21 +20,14 @@ app.get("/purchase/:itemID", (req, res) => {
 
   let query = "SELECT * FROM catalog WHERE id = ?";
   let params = [itemID];
-  if (itemID <= 4) {
+  if (itemID > 0 && itemID <= 7) {
     //send query to db
     db.all(query, params, (err, rows) => {
       if (err) {
         console.error(err.message);
         return res.status(500).json({ error: err.message });
       }
-      const responses = [];
-      rows.forEach((row) => {
-        // Collect responses for each item
-        responses.push({
-          quantity: row.quantity,
-        });
-      });
-      res.status(200).json(responses);
+      res.status(200).json(rows);
     });
   } else {
     res.status(404).json({ message: "Item not found" });
@@ -102,7 +95,7 @@ app.put("/update/:itemId", (req, res) => {
 
     //chick if the item exist in db
     //if itemId <= 4 because we have for item
-    if (itemId <= 4) {
+    if (itemId > 0 && itemId <= 7) {
       // Query the catalog table in the SQLite database by item ID or title
       db.all(`SELECT * FROM catalog WHERE id = ?`, [itemId], (err, rows) => {
         if (err) {
@@ -111,7 +104,7 @@ app.put("/update/:itemId", (req, res) => {
         }
 
         const q = rows[rows.length - 1].quantity; // save the quantity of item i 'q'
-        const title = rows[0].title; // save the title of item i 'title'
+        const obj = rows[0]; // save the title of item i 'title'
 
         // chick if item found in stock
         if (rows && q > 0) {
@@ -128,40 +121,47 @@ app.put("/update/:itemId", (req, res) => {
                 return res.status(500).json({ error: "Internal server error" });
               }
 
-              const frontendRequest = http.delete(
-                `http://localhost:8000/invalidate/${itemId}`,
-                (catalogRes) => {
-                  let data = "";
+              const options = {
+                hostname: "localhost",
+                port: 8000,
+                path: `/invalidate/${itemId}`,
+                method: "DELETE",
+              };
 
-                  catalogRes.on("data", (chunk) => {
-                    data += chunk;
-                  });
+              const frontendRequest = http.request(options, (catalogRes) => {
+                let data = "";
 
-                  catalogRes.on("end", () => {
-                    // Parse the response data if it's JSON
-                    const responseObject = JSON.parse(data);
-                    console.log(title);
-                    if (
-                      catalogRes.statusCode === 200 &&
-                      responseObject.response === true
-                    ) {
-                      // Cache item was successfully invalidated
-                      console.log("Cache item invalidated successfully");
-                      //send name of item to order server
-                      res.status(200).json({
-                        title: title,
-                      });
-                    } else {
-                      // Cache item was not invalidated or encountered an error
-                      console.error("Failed to invalidate cache item");
-                      //send name of item to order server
-                      res.status(200).json({
-                        title: title,
-                      });
-                    }
-                  });
-                }
-              );
+                catalogRes.on("data", (chunk) => {
+                  data += chunk;
+                });
+
+                catalogRes.on("end", () => {
+                  // Parse the response data if it's JSON
+                  const responseObject = JSON.parse(data);
+
+                  if (
+                    catalogRes.statusCode === 200 &&
+                    responseObject.response === true
+                  ) {
+                    // Cache item was successfully invalidated
+                    console.log("Cache item invalidated successfully");
+                    // Send name of item to order server
+                    res.status(200).json(obj);
+                  } else {
+                    // Cache item was not invalidated or encountered an error
+                    console.error("Failed to invalidate cache item");
+                    // Send name of item to order server
+                    res.status(200).json(obj);
+                  }
+                });
+              });
+
+              frontendRequest.on("error", (error) => {
+                console.error(`Error making HTTP request: ${error.message}`);
+                // Handle the error as needed
+              });
+
+              frontendRequest.end();
             }
           );
         } else {
