@@ -127,10 +127,41 @@ app.put("/update/:itemId", (req, res) => {
                 console.error(updateErr.message);
                 return res.status(500).json({ error: "Internal server error" });
               }
-              //send name of item to order server
-              res.status(200).json({
-                title: title,
-              });
+
+              const frontendRequest = http.delete(
+                `http://localhost:8000/invalidate/${itemId}`,
+                (catalogRes) => {
+                  let data = "";
+
+                  catalogRes.on("data", (chunk) => {
+                    data += chunk;
+                  });
+
+                  catalogRes.on("end", () => {
+                    // Parse the response data if it's JSON
+                    const responseObject = JSON.parse(data);
+                    console.log(title);
+                    if (
+                      catalogRes.statusCode === 200 &&
+                      responseObject.response === true
+                    ) {
+                      // Cache item was successfully invalidated
+                      console.log("Cache item invalidated successfully");
+                      //send name of item to order server
+                      res.status(200).json({
+                        title: title,
+                      });
+                    } else {
+                      // Cache item was not invalidated or encountered an error
+                      console.error("Failed to invalidate cache item");
+                      //send name of item to order server
+                      res.status(200).json({
+                        title: title,
+                      });
+                    }
+                  });
+                }
+              );
             }
           );
         } else {

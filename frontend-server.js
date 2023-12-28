@@ -153,7 +153,7 @@ app.post("/purchase/:itemID", async (req, res) => {
   const startTime = new Date();
   try {
     // Check if the item is out of stock in the cache
-    const cachedOutOfStock = cache.get(`outOfStock_${itemID}`);
+    const cachedOutOfStock = cache.get(itemID);
 
     if (cachedOutOfStock) {
       console.log(`Item ID ${itemID} is out of stock (cached)`);
@@ -167,7 +167,7 @@ app.post("/purchase/:itemID", async (req, res) => {
     }
 
     // Check if the item is marked as not found in the cache
-    const cachedNotFound = cache.get(`notFound_${itemID}`);
+    const cachedNotFound = cache.get(itemID);
 
     if (cachedNotFound) {
       console.log(`Item ID ${itemID} not found (cached)`);
@@ -206,21 +206,20 @@ app.post("/purchase/:itemID", async (req, res) => {
             message: ` ${responseObject.message} `, // Item bought successfully
           });
         } else if (orderRes.statusCode === 404) {
-          var size = checkCacheSize(`notFound_${itemID}`, true); // Check and apply cache size limit
-
+          var size = checkCacheSize(itemID, true); // Check and apply cache size limit
           if (size) {
-            cache.set(`notFound_${itemID}`, true);
+            cache.set(itemID);
           }
 
           res.status(404).json({
             message: ` ${responseObject.message} `, // Item not found
           });
         } else {
-          var size = checkCacheSize(`outOfStock_${itemID}`, true); // Check and apply cache size limit
-
+          var size = checkCacheSize(itemID, true); // Check and apply cache size limit
           if (size) {
-            cache.set(`outOfStock_${itemID}`, true);
+            cache.set(itemID, true);
           }
+
           res.status(400).json({
             message: ` ${responseObject.message} `, // Item out of stock
           });
@@ -237,6 +236,33 @@ app.post("/purchase/:itemID", async (req, res) => {
     orderRequest.end();
   } catch (e) {
     console.log(e);
+  }
+});
+
+app.delete("/invalidate/:itemId", (req, res) => {
+  const { itemId } = req.params;
+  var flag = false;
+  cache.keys().forEach((key) => {
+    if (key == itemId) {
+      flag = true;
+    }
+  });
+  if (flag) {
+    const removed = cache.del(itemId);
+
+    if (removed) {
+      res.status(200).json({
+        response: true,
+      });
+    } else {
+      res.status(404).json({
+        response: false,
+      });
+    }
+  } else {
+    res.status(200).json({
+      response: true,
+    });
   }
 });
 
