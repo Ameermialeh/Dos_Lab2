@@ -155,7 +155,6 @@ app.put("/update/:itemId", (req, res) => {
                   }
                 });
               });
-
               frontendRequest.on("error", (error) => {
                 console.error(`Error making HTTP request: ${error.message}`);
                 // Handle the error as needed
@@ -171,6 +170,22 @@ app.put("/update/:itemId", (req, res) => {
     } else {
       res.status(404).json({ message: "Item not found" });
     }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+//
+app.put("/setData", (req, res) => {
+  try {
+    const { itemId, quantity } = req.query;
+    sql = "Update catalog SET quantity = ? WHERE id = ?";
+    db.all(sql, [quantity, itemId], (err, rows) => {
+      if (err) {
+        console.error(err.message);
+        return res.status(500).json({ error: "Internal server error" });
+      }
+      res.status(200).json("Update quantity successfully");
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
