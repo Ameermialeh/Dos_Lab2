@@ -3,7 +3,7 @@ const express = require("express");
 const app = express();
 const NodeCache = require("node-cache");
 const cache = new NodeCache({ stdTTL: 6000, checkperiod: 120 }); //TTL 6000 sec
-const maxCacheSize = 4; // Maximum number of items in the cache
+const maxCacheSize = 100; // Maximum number of items in the cache
 const port = 8000; // port server frontend http://172.18.0.6:8000
 
 //For replication part
@@ -255,6 +255,7 @@ app.post("/purchase/:itemID", async (req, res) => {
     const cachedOutOfStock = cache.get(itemID);
 
     if (cachedOutOfStock && cachedOutOfStock[0]["quantity"] <= 0) {
+      console.log(cachedOutOfStock[0]["quantity"]);
       console.log(`Item ID ${itemID} is out of stock (cached)`);
       const endTime = process.hrtime(startTime); // calculate the time
       console.log(
@@ -289,7 +290,8 @@ app.post("/purchase/:itemID", async (req, res) => {
         if (orderRes.statusCode === 200) {
           // update the item in database
           const UpdateRequestOptions = {
-            hostname: currentServer.host,
+            hostname:
+              currentServer.host == "172.18.0.9" ? "172.18.0.7" : "172.18.0.10",
             port: currentServer.port == "7002" ? 8001 : 7001,
             path: `/setData?itemId=${itemID}&quantity=${
               responseObject.quantity - 1
@@ -343,6 +345,7 @@ app.post("/purchase/:itemID", async (req, res) => {
             message: ` ${responseObject.message} `, // Item not found
           });
         } else {
+          console.log(responseObject);
           var size = checkCacheSize(itemID, responseObject); // Check and apply cache size limit
           if (size) {
             cache.set(itemID, responseObject);

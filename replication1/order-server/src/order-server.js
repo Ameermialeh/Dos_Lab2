@@ -10,7 +10,7 @@ app.use(bodyParser.json());
 // catalog server http://172.18.0.7:8001
 const catalogServerOptions = {
   // hostname: "172.18.0.7",
-  hostname: "172.18.0.9",
+  hostname: "172.18.0.7",
   port: 8001,
 };
 
