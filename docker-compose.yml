@@ -1,0 +1,83 @@
+version: '3'
+services:
+  frontend-server:
+    build: 
+      context: ./frontend-server
+    container_name: frontend-container
+    ports:
+      - "8000:8000"
+    volumes: # host files : image file ,when edit on file in /app/src then same edit will be on files in .\frontend-server\src
+      - .\frontend-server\src:/app/src
+    networks:
+      internal-network: #name of network
+        ipv4_address: 172.18.0.6 #ip for frontend server
+    depends_on: # to run should catalog-server and order-server run before
+      - catalog-server1
+      - catalog-server2
+      - order-server1
+      - order-server2
+
+  order-server1:
+    build:  
+      context: ./replication1/order-server
+    container_name: order-container-replication1
+    ports:
+      - "8002:8002"
+    volumes:
+      - .\replication1\order-server\src:/app/src
+    networks:
+      internal-network:
+        ipv4_address: 172.18.0.8
+
+    depends_on:
+      - catalog-server1
+      - catalog-server2
+
+  order-server2:
+    build:  
+      context: ./replication2/order-server
+    container_name: order-container-replication2
+    ports:
+      - "7002:7002"
+    volumes:
+      - .\replication2\order-server\src:/app/src
+    networks:
+      internal-network:
+        ipv4_address: 172.18.0.9
+
+    depends_on:
+      - catalog-server1
+      - catalog-server2
+
+  catalog-server1:
+    build: 
+      context: ./replication1/catalog-server
+    container_name: catalog-container-replication1
+    ports:
+      - "8001:8001"
+    volumes:
+      - .\replication1\catalog-server\src:/app/src
+      - .\replication1\catalog-server\catalog.db:/app/catalog.db #db file in host : db file in image
+    networks:
+      internal-network:
+        ipv4_address: 172.18.0.7
+
+  catalog-server2:
+    build: 
+      context: ./replication2/catalog-server
+    container_name: catalog-container-replication2
+    ports:
+      - "7001:7001"
+    volumes:
+      - .\replication2\catalog-server\src:/app/src
+      - .\replication2\catalog-server\catalog.db:/app/catalog.db #db file in host : db file in image
+    networks:
+      internal-network:
+        ipv4_address: 172.18.0.10
+
+networks:
+  internal-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16

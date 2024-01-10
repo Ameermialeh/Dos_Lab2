@@ -1,4 +1,6 @@
-node_modules
-replication1/node_modules
-replication2/node_modules
-gitignore
+frontend-server/node_modules
+replication1/catalog-server/node_modules
+replication1/order-server/node_modules
+replication2/catalog-server/node_modules
+replication2/order-server/node_modules
+.gitignore
