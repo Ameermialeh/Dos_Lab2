@@ -311,6 +311,9 @@ app.post("/purchase/:itemID", async (req, res) => {
 
               decrementResponse.on("end", () => {
                 if (decrementResponse.statusCode == 200) {
+                  console.log(
+                    "Database modified for replications successfully"
+                  );
                   const endTime = process.hrtime(startTime); // calculate the time
                   console.log(
                     `Time taken From server: ${endTime[0]}s ${
@@ -376,8 +379,7 @@ app.post("/purchase/:itemID", async (req, res) => {
 app.delete("/invalidate/:itemId", (req, res) => {
   const { itemId } = req.params;
   var flag = false;
-  console.log("inside delete");
-  console.log("//////////////");
+  console.log("inside delete api");
   cache.keys().forEach((key) => {
     if (key == itemId) {
       flag = true;
@@ -385,10 +387,10 @@ app.delete("/invalidate/:itemId", (req, res) => {
   });
 
   if (flag) {
-    console.log("before delete");
+    console.log("cache before delete:");
     cache.keys().forEach((key) => console.log(key));
     const removed = cache.del(itemId);
-    console.log("after delete");
+    console.log("cache after delete:");
     cache.keys().forEach((key) => console.log(key));
 
     if (removed) {
